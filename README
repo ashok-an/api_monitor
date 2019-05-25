@@ -1,0 +1,10 @@
+- Installing prometheus
+	1. Create /opt/promdata/prometheus.yml
+	2. docker run -d -p 9090:9090 -v /opt/promdata:/promdata prom/prometheus --config.file=/promdata/prometheus.yml
+
+	Check: <host-ip>:9090
+
+- Install grafana
+	docker run -d -p 3000:3000 -e "GF_SECURITY_ADMIN_PASSWORD=arpeggio" grafana/grafana
+	
+	Check: <host-ip>:3000
