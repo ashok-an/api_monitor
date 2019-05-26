@@ -1,5 +1,5 @@
 ### Install Python packages
-``` python
+```python
     pip install requests_jwt
     pip install prometheus_client
 ```
