@@ -1,19 +1,27 @@
-- Python packages
+
+### Install Python packages
+``` python
     pip install requests_jwt
     pip install prometheus_client
+```
 
-- Installing prometheus
-	1. cd <git-clone-dir>
+### Installing prometheus infra
+	1. `cd <git-clone-dir>`
 
-	2. docker run -d -p 9090:9090 -v ${PWD}/prometheus-config:/promdata prom/prometheus --config.file=/promdata/prometheus.yml
+	2. `docker run -d -p 9090:9090 -v ${PWD}/prometheus-config:/promdata prom/prometheus --config.file=/promdata/prometheus.yml`
     Check: <host-ip>:9090
 
-    3. docker run -d -p 9091:9091 prom/pushgateway
+    3. `docker run -d -p 9091:9091 prom/pushgateway`
 	Check: <host-ip>:9091/metrics
 
-- Install grafana
-	docker run -d -p 3000:3000 -e "GF_SECURITY_ADMIN_PASSWORD=arpeggio" grafana/grafana
-	Check: <host-ip>:3000
+### Install grafana
+    1. `docker run -d -p 3000:3000 -e "GF_SECURITY_ADMIN_PASSWORD=arpeggio" grafana/grafana`
+	Check: <host-ip>:3000 #login with **admin** | **arpeggio**
 
-- For debugging
-    export PYTHONUNBUFFERED=1
+### For debugging
+   > export PYTHONUNBUFFERED=1`
+
+### Schematic
+```
+[service_status|user_count] --PUSH-> [gateway:9091] <-PULL-- [prometheus:9090]
+```
