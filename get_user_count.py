@@ -8,39 +8,59 @@ import time
 from requests.exceptions import Timeout
 
 from requests_jwt import JWTAuth
+import prometheus_client as prom
 
 import common
+
 
 # create logger
 logging.config.fileConfig('logging.conf')
 logger = logging.getLogger('api_monitor')
 
+# common values
+data    = "{\n\t\"username\": \"admin\",\n\t\"password\": \"alohamora\"\n}"
+headers = { 'Content-Type': "application/json", 'cache-control': "no-cache"}
+
+# prometheus
+registry = prom.CollectorRegistry()
+green = prom.Gauge('active_users_last_green_timestamp', 'Latest 200 status for /active-users endpoint', registry=registry)
+red   = prom.Gauge('active_users_last_red_timestamp', 'Latest 40x/50x status for /active-users endpoint', registry=registry)
+userCount = prom.Gauge('active_users_output', 'Output from /active-users, -1 in-case of errors', registry=registry)
+recovery  = prom.Gauge('active_users_red_to_green_seconds', 'Time in seconds for /active-users to change from 500 to 200', registry=registry)
+
+TOKEN_CHECK  = prom.Summary('runtime_token_status_seconds', 'Time spent processing /token-status', registry=registry)
+TOKEN_GEN    = prom.Summary('runtime_token_seconds', 'Time spent processing /token', registry=registry)
+ACTIVE_USERS = prom.Summary('runtime_active_users_seconds', 'Time spent processing /active-users inclusive of token check/refresh', registry=registry)
+
 # Global - bad implementation
 TOKEN = ''
 
+
+def update_last_recovery_time(red, green):
+    delta = green - red
+    recovery.set(delta)
+    logger.info("+ RecoveryTime={}\n".format(delta))
+# end
+
+@TOKEN_CHECK.time()
 def is_token_ok(token):
     if not token:
         return False
-    # if
     url     = "https://lackadaisical-tip.glitch.me/token-status"
-    data    = "{\n\t\"username\": \"admin\",\n\t\"password\": \"alohamora\"\n}"
-    headers = { 'Content-Type': "application/json", 'cache-control': "no-cache"}
     params  = {'token': token}
     return common.is_http_ok(url=url, headers=headers, params=params)
 # end
 
+@TOKEN_GEN.time()
 def gen_token():
     token    = ''
     url      = "https://lackadaisical-tip.glitch.me/token"
-    data     = "{\n\t\"username\": \"admin\",\n\t\"password\": \"alohamora\"\n}"
-    headers  = { 'Content-Type': "application/json", 'cache-control': "no-cache"}
     
     response = requests.post(url, headers=headers, data=data)
-    logger.info("op={}, status={}, url={}, json={:40s}".format('POST', response.status_code, url, response.json()))
+    logger.info("op={}, status={}, url={}".format('POST', response.status_code, url))
 
     if response.status_code in [200, 201] and response.json() and 'token' in response.json():
         token = response.json().get('token', '?')
-    # if
     return token
 # end
 
@@ -52,26 +72,49 @@ def get_token():
     return TOKEN
 # end
 
-@common.timeit
+@ACTIVE_USERS.time()
 def get_user_count():
     token    = get_token()
     auth     = JWTAuth(token)
     url      = "https://lackadaisical-tip.glitch.me/active-users"
+
     response = requests.get(url, auth=auth) 
-    logger.info("op={:4s}, status={}, url={}, json={}".format('GET', response.status_code, url, response.json()))
+    logger.info("op={:4s}, status={}, url={}".format('GET', response.status_code, url))
+
     # json={u'activeUsers': 8596}
+    result = -1
     if response.json() and 'activeUsers' in response.json():
-        return response.json().get('activeUsers', 0)
+        green.set_to_current_time()
+        result = response.json().get('activeUsers', -1)
     else:
-        return 0
+        red.set_to_current_time()
     # if
+    userCount.set(result)
+    prom.push_to_gateway('localhost:9091', job='api_active_users', registry=registry)
+    return result
 # end
 
+
 if __name__ == '__main__':
-    for i in range(1, 20):
-        count = get_user_count()
+    isFailing = False
+    lastRed   = time.time()
+    lastGreen = time.time()
+
+    while True:
+        result = get_user_count()
         time.sleep(5)
-        logger.info("+ Count={}\n".format(count))
-    # for
+        logger.info("+ Count={}\n".format(result))
+
+        if result == -1:
+            lastRed   = time.time()
+            isFailing = True
+        else:
+            lastGreen = time.time()
+            if isFailing:
+                update_last_recovery_time(lastRed, lastGreen)
+                isFailing = False
+            # if
+        # if                
+    # while
 # end
 

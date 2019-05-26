@@ -11,31 +11,19 @@ from requests.exceptions import Timeout
 logging.config.fileConfig('logging.conf')
 logger = logging.getLogger('api_monitor')
 
-def is_http_ok(url, headers=None, data=None, params=None):
-    status = False
+def http_get(url, headers=None, data=None, params=None):
     try:
         response = requests.get(url, headers=headers, data=data, params=params, timeout=60) # timeout = 1min
-        logger.info("op={:4s}, status={}, url={}, json={}".format('GET', response.status_code, url, response.json()))
-        status = True if response.status_code is 200 else False
+        logger.info("op={:4s}, status={}, url={}".format('GET', response.status_code, url))
     except Timeout:
         logger.error("> ...timeout")
-    # try    
+    # try
+    return response
+# end    
+
+
+def is_http_ok(url, headers=None, data=None, params=None):
+    response = http_get(url, headers, data, params)
+    status   = True if response.status_code is 200 else False
     return status
-# end
-
-def timeit(method):
-    def timed(*args, **kw):
-        ts = time.time()
-        result = method(*args, **kw)
-        te = time.time()
-
-        if 'log_time' in kw:
-            name = kw.get('log_name', method.__name__.upper())
-            kw['log_time'][name] = int((te - ts) * 1000)
-        else:
-            print '%r  %2.2f ms' % \
-                  (method.__name__, (te - ts) * 1000)
-        return result
-    # end
-    return timed
 # end
