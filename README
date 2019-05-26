@@ -1,4 +1,3 @@
-
 ### Install Python packages
 ``` python
     pip install requests_jwt
