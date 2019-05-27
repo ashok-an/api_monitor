@@ -28,6 +28,9 @@ red   = prom.Gauge('active_users_last_red_timestamp', 'Latest 40x/50x status for
 userCount = prom.Gauge('active_users_output', 'Output from /active-users, -1 in-case of errors', registry=registry)
 recovery  = prom.Gauge('active_users_red_to_green_seconds', 'Time in seconds for /active-users to change from 500 to 200', registry=registry)
 
+errCount  = prom.Counter('active_users_errors', 'Error count for /active-users', registry=registry)
+tokCount  = prom.Counter('token_refresh', 'Number of token refresh requests', registry=registry)
+
 TOKEN_CHECK  = prom.Summary('runtime_token_status_seconds', 'Time spent processing /token-status', registry=registry)
 TOKEN_GEN    = prom.Summary('runtime_token_seconds', 'Time spent processing /token', registry=registry)
 ACTIVE_USERS = prom.Summary('runtime_active_users_seconds', 'Time spent processing /active-users inclusive of token check/refresh', registry=registry)
@@ -61,6 +64,8 @@ def gen_token():
 
     if response.status_code in [200, 201] and response.json() and 'token' in response.json():
         token = response.json().get('token', '?')
+
+    tokCount.inc()
     return token
 # end
 
@@ -88,6 +93,7 @@ def get_user_count():
         result = response.json().get('activeUsers', -1)
     else:
         red.set_to_current_time()
+        errCount.inc()
     # if
     userCount.set(result)
     prom.push_to_gateway('localhost:9091', job='api_active_users', registry=registry)
