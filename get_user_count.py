@@ -95,11 +95,11 @@ def get_user_count():
     if response.json() and 'activeUsers' in response.json():
         green.set_to_current_time()
         result = response.json().get('activeUsers', -1)
+        userCount.set(result)
     else:
         red.set_to_current_time()
         errCount.inc()
     # if
-    userCount.set(result)
     prom.push_to_gateway('localhost:9091', job='api_active_users', registry=registry)
     return result
 # end
