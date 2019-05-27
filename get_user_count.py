@@ -27,6 +27,7 @@ green = prom.Gauge('active_users_last_green_timestamp', 'Latest 200 status for /
 red   = prom.Gauge('active_users_last_red_timestamp', 'Latest 40x/50x status for /active-users endpoint', registry=registry)
 userCount = prom.Gauge('active_users_output', 'Output from /active-users, -1 in-case of errors', registry=registry)
 recovery  = prom.Gauge('active_users_red_to_green_seconds', 'Time in seconds for /active-users to change from 500 to 200', registry=registry)
+respTime  = prom.Gauge('active_users_response_time_seconda', 'Response time for /active-users', registry=registry)
 
 errCount  = prom.Counter('active_users_errors', 'Error count for /active-users', registry=registry)
 tokCount  = prom.Counter('token_refresh', 'Number of token refresh requests', registry=registry)
@@ -83,8 +84,11 @@ def get_user_count():
     auth     = JWTAuth(token)
     url      = "https://lackadaisical-tip.glitch.me/active-users"
 
+    start    = time.time()
     response = requests.get(url, auth=auth) 
     logger.info("op={:4s}, status={}, url={}".format('GET', response.status_code, url))
+    duration = time.time() - start
+    respTime.set(duration)
 
     # json={u'activeUsers': 8596}
     result = -1
